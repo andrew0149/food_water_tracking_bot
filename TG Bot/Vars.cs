@@ -8,8 +8,8 @@ namespace TG_Bot
 {
     public static class connection_strings
     {
-        public static string bot_token = "API Token";
-        public static string db_connect = "Host=IP;Username=username;Password=password;Database=database;Port=port";
+        public static string bot_token = "";
+        public static string db_connect = "Host=;Username=;Password=;Database=;Port=";
     }
     public static class Keyboard_Markups
     {
@@ -137,7 +137,6 @@ namespace TG_Bot
     public class User_data
     {        
     //public string user_state;
-    public string add_dish_string;
     public double calories_sum;
     public List<string> List_Of_Dishes = new List<string>();
     //public long chat_id;

@@ -8,7 +8,7 @@ using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 using Telegram.Bots.Types.Inline;
 using TG_Bot;
-
+string add_dish_string = "";
 using CancellationTokenSource cts = new();
 var botClient = new TelegramBotClient(connection_strings.bot_token);
 var connectionString = connection_strings.db_connect;
@@ -127,14 +127,14 @@ async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, Cancel
                                             }
                                         case "calories_per_day_change":
                                             {
-                                                using (var sql_command2 = dataSource.CreateCommand("UPDATE users set calories_per_day = " + message.Text + " where chat_id = " + user.chat_id))
+                                                /*using (var sql_command2 = dataSource.CreateCommand("UPDATE users set calories_per_day = " + message.Text + " where chat_id = " + user.chat_id))
                                                 {
                                                     await sql_command2.ExecuteNonQueryAsync();
                                                 };
                                                 await botClient.SendTextMessageAsync(message.Chat, "Рост изменен, поменяем что-нибудь ещё?", replyMarkup: Keyboard_Markups.user_Change_Reply_Keyboard);
                                                 user.user_state = "general_data_change";
                                                 await set_user_state(user.chat_id, user.user_state);
-
+                                                */
                                                 return;
                                             }
                                         case "height_change":
@@ -190,24 +190,23 @@ async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, Cancel
                                         case "dish_add_weight":
 
                                             {
-                                                user.add_dish_string += $"{message.Text}, {user.chat_id})";
-                                                using var sql_command2 = dataSource.CreateCommand(user.add_dish_string);
+                                                add_dish_string += $"{message.Text}, {user.chat_id})";
+                                                using var sql_command2 = dataSource.CreateCommand(add_dish_string);
                                                 await sql_command2.ExecuteNonQueryAsync();
                                                 await botClient.SendTextMessageAsync(message.Chat, "Блюдо добавлено", replyMarkup: Keyboard_Markups.user_Reply_Keyboard);
                                                 user.user_state = "";
                                                 await set_user_state(user.chat_id, user.user_state);
 
-                                                user.add_dish_string = "";
+                                                add_dish_string = "";
                                                 return;
                                             }
                                         case "dish_add_calories":
 
                                             {
                                                 await botClient.SendTextMessageAsync(message.Chat, "Введите средний вес порции в граммах");
-                                                user.add_dish_string += $"{message.Text},";
-                                                await set_user_state(user.chat_id, user.user_state);
-
+                                                add_dish_string += $"{message.Text},";
                                                 user.user_state = "dish_add_weight";
+                                                await set_user_state(user.chat_id, user.user_state);
                                                 return;
                                             }
                                         case "dish_add_type":
@@ -223,8 +222,8 @@ async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, Cancel
 
                                             {
 
-                                                await botClient.SendTextMessageAsync(message.Chat, "Введите тип блюда, например");
-                                                user.add_dish_string = $"INSERT INTO fooditem (name, calories, weight, chat_id) VALUES ('{message.Text}',";
+                                                await botClient.SendTextMessageAsync(message.Chat, "Введите тип блюда, например суп");
+                                                add_dish_string = $"INSERT INTO fooditem (name, calories, weight, chat_id) VALUES ('{message.Text}',";
                                                 user.user_state = "dish_add_type";
                                                 await set_user_state(user.chat_id, user.user_state);
 
@@ -318,16 +317,36 @@ async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, Cancel
                                         case "Еда":
                                             {
                                                 string fooditems = "";
-                                                await using (var sql_command = dataSource.CreateCommand($"select f.\"name\" from fooditem f inner join fooditems_per_day fpd on f.chat_id = fpd.chat_id where f.chat_id = {user.chat_id}"))
-                                                await using (var reader = await sql_command.ExecuteReaderAsync())
+                                                bool dishes_exists = false;
+                                                await using (var sql_command1 = dataSource.CreateCommand($"SELECT EXISTS (SELECT 1 FROM fooditem WHERE chat_id = {user.chat_id} and \"name\" is not null)"))
+                                                await using (var reader = await sql_command1.ExecuteReaderAsync())
                                                 {
                                                     while (await reader.ReadAsync())
                                                     {
-                                                        for (int i = 0; i < reader.FieldCount; i++)
-                                                            fooditems = fooditems + reader.GetString(i) + '\n';
+                                                        dishes_exists = reader.GetBoolean(0);
                                                     }
+                                                };
+                                                if (dishes_exists)
+                                                {
+                                                    await using (var sql_command = dataSource.CreateCommand($"select f.\"name\" from fooditem f inner join fooditems_per_day fpd on f.chat_id = fpd.chat_id where f.chat_id = {user.chat_id}"))
+                                                    await using (var reader = await sql_command.ExecuteReaderAsync())
+                                                    {
+                                                        while (await reader.ReadAsync())
+                                                        {
+                                                            for (int i = 0; i < reader.FieldCount; i++)
+                                                                fooditems = fooditems + reader.GetString(i) + '\n';
+                                                        }
+                                                    }
+                                                    await botClient.SendTextMessageAsync(message.Chat, "Меню на сегодня\n" + fooditems, replyMarkup: Keyboard_Markups.Dishes_Reply_Keyboard);
                                                 }
-                                                await botClient.SendTextMessageAsync(message.Chat, "Меню на сегодня\n" + fooditems, replyMarkup: Keyboard_Markups.Dishes_Reply_Keyboard);
+                                                else
+                                                {
+                                                    await botClient.SendTextMessageAsync(message.Chat, "У вас нет ни одного блюда, добавьте хотя-бы одно блюдо" +
+                                                        " и создайте рацион чтобы увидеть этот список.", replyMarkup: Keyboard_Markups.Dishes_Reply_Keyboard);
+                                                    user.user_state = "";
+                                                    await set_user_state(user.chat_id, user.user_state);
+                                                }
+
                                                 return;
                                             }
                                         case "Напоминания":
@@ -549,6 +568,7 @@ async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, Cancel
                                                 {
                                                     await botClient.SendTextMessageAsync(message.Chat, "Чтобы сделать меню, нужно добавить хотя-бы одно блюдо");
                                                     user.user_state = "";
+                                                    await set_user_state(user.chat_id, user.user_state);
                                                 }
                                                 return;
                                             }
