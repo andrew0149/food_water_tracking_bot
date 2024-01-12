@@ -13,8 +13,8 @@ var eatenDishName = "";
 
 CancellationTokenSource cts = new();
 
-var botClient = new TelegramBotClient(ConnectionStrings.TgApiToken);
-var pgCredentials = ConnectionStrings.PgCredentials;
+var botClient = new TelegramBotClient(Config.TgApiToken);
+var pgCredentials = Config.PgCredentials;
 
 await using var dataSource = NpgsqlDataSource.Create(
     $"Host={pgCredentials["host"]};" 
